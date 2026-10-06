@@ -57,7 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/finance', [\App\Http\Controllers\FinanceController::class, 'index'])->name('finance.index');
 
     // Tedarikçiler
-    Route::get('/suppliers', [\App\Http\Controllers\SupplierController::class, 'index'])->name('suppliers.index');
+    Route::resource('suppliers', \App\Http\Controllers\SupplierController::class);
 
     // Ustalar & Usta Performansı
     Route::get('/masters', [\App\Http\Controllers\MasterController::class, 'index'])->name('masters.index');
@@ -65,6 +65,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Ayarlar
     Route::get('/settings', [\App\Http\Controllers\SettingController::class, 'index'])->name('settings.index');
+    Route::put('/settings', [\App\Http\Controllers\SettingController::class, 'update'])->name('settings.update');
 
     // ============================================================
     // 🤖 Akıllı Arıza Asistanı (Diagnostic Phase 2)

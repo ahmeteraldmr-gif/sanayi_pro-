@@ -69,8 +69,12 @@ class CustomerController extends Controller
 
     public function destroy(Customer $customer)
     {
+        if ($customer->vehicles()->exists()) {
+            return back()->with('error', 'Bu müşteriye ait kayıtlı araçlar bulunmaktadır. Müşteriyi silmeden önce lütfen ilişkili araçları başka bir müşteriye aktarın veya silin.');
+        }
+
         $customer->delete();
         return redirect()->route('customers.index')
-            ->with('success', 'Müşteri silindi.');
+            ->with('success', 'Müşteri başarıyla silindi.');
     }
 }

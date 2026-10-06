@@ -4,10 +4,105 @@
     <div x-data="{ showGuide: localStorage.getItem('sanayi_hide_guide') !== 'true', activeTab: 'tour' }">
 
         <!-- ============================================================
-             1. TANITIM & HIZLI BAŞLANGIÇ REHBERİ (ONBOARDING HERO)
+             0. USTA HOŞ GELDİN & BRANŞ UZMANLIK BANNERI
         ============================================================ -->
+        <div class="mb-6 rounded-3xl bg-slate-900 text-white p-5 sm:p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                    👨‍🔧
+                </div>
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h1 class="text-lg sm:text-xl font-black tracking-tight">Selam, {{ auth()->user()->name }} Usta 👋</h1>
+                        <span class="bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                            {{ $branch->name ?? 'SanayiPro Oto Servis' }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-300 mt-0.5">
+                        <strong class="text-indigo-400">{{ $branch->title ?? 'Oto Servis & Bakım Onarım' }}</strong>
+                        @if(!empty($branch?->description))
+                            — <span class="text-slate-400">{{ \Illuminate\Support\Str::limit($branch->description, 90) }}</span>
+                        @endif
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('settings.index') }}" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl transition-colors font-bold flex items-center gap-1.5">
+                    <span>⚙️ Branş Ayarları</span>
+                </a>
+            </div>
+        </div>
+
         <!-- ============================================================
-             1. TANITIM & HIZLI BAŞLANGIÇ REHBERİ (ONBOARDING HERO - LIGHT MODERN)
+             BUGÜNKÜ RANDEVULAR UYARISI
+        ============================================================ -->
+        @if(isset($todayAppointments) && $todayAppointments->count() > 0)
+        <div class="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    📅
+                </div>
+                <div>
+                    <h3 class="text-xs font-black text-blue-950">Bugün {{ $todayAppointments->count() }} Araç Randevusu Var!</h3>
+                    <p class="text-[11px] text-blue-700">
+                        @foreach($todayAppointments->take(3) as $app)
+                            <span class="inline-block mr-2 font-medium">• {{ $app->vehicle?->plate }} ({{ \Carbon\Carbon::parse($app->appointment_date)->format('H:i') }}) - {{ $app->title }}</span>
+                        @endforeach
+                    </p>
+                </div>
+            </div>
+            <a href="{{ route('appointments.index') }}" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-xl transition-colors shrink-0 text-center">
+                Randevu Takvimine Git →
+            </a>
+        </div>
+        @endif
+
+        <!-- ============================================================
+             ⚡ BRANŞA ÖZEL HIZLI İŞLEMLER (23 FARKLI BRANŞ İÇİN ÖZEL)
+        ============================================================ -->
+        @if(!empty($quickActions) && count($quickActions) > 0)
+        <div class="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs mb-6">
+            <div class="flex items-center justify-between mb-3.5 pb-2.5 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">⚡</span>
+                    <div>
+                        <h2 class="text-sm font-black text-slate-900">Branşa Özel Hızlı İşlem & Fiş Başlatıcı</h2>
+                        <p class="text-[11px] text-slate-400">Sık yapılan işlemleri tek tıkla iş emrine dönüştürün</p>
+                    </div>
+                </div>
+                <span class="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2.5 py-1 rounded-full border border-indigo-200">
+                    {{ $branch->name ?? 'Usta Kısayolları' }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                @foreach($quickActions as $qa)
+                    <a href="{{ route('work-orders.create', ['labor' => $qa['labor'], 'price' => $qa['price']]) }}"
+                       class="p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200/80 hover:border-indigo-300 transition-all group flex flex-col justify-between">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <span class="text-2xl">{{ $qa['icon'] ?? '🔧' }}</span>
+                            <span class="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                ₺{{ number_format($qa['price'], 0, ',', '.') }}
+                            </span>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-black text-slate-800 group-hover:text-indigo-700 transition-colors leading-snug">
+                                {{ $qa['title'] }}
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5 truncate">{{ $qa['labor'] }}</p>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-200/50 flex items-center justify-between text-[11px] font-bold text-indigo-600 group-hover:text-indigo-700">
+                            <span>+ İş Emri Aç</span>
+                            <span>→</span>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        <!-- ============================================================
+             1. TANITIM & HIZLI BAŞLANGIÇ REHBERİ (ONBOARDING HERO)
         ============================================================ -->
         <div x-show="showGuide" x-transition
              class="mb-6 rounded-3xl bg-white text-slate-900 p-5 sm:p-6 shadow-xs border border-slate-200 relative overflow-hidden">
@@ -114,7 +209,6 @@
                 <span>💡 Kullanım Rehberini Göster</span>
             </button>
         </div>
-
 
         <!-- ============================================================
              2. HIZLI PLAKA ARAMA VE EYLEM BAR

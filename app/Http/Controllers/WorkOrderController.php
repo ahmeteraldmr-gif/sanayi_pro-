@@ -86,50 +86,57 @@ class WorkOrderController extends Controller
             'items.*.part_id'    => 'nullable|exists:parts,id',
         ]);
 
-        DB::transaction(function () use ($request) {
-            $workOrder = WorkOrder::create([
-                'vehicle_id' => $request->vehicle_id,
-                'date'       => $request->date,
-                'status'     => $request->status,
-                'discount'   => $request->discount ?? 0,
-                'notes'      => $request->notes,
-                'total_parts'=> 0,
-                'total_labor'=> 0,
-            ]);
-
-            foreach ($request->items as $item) {
-                $total = $item['quantity'] * $item['unit_price'];
-
-                WorkOrderItem::create([
-                    'work_order_id' => $workOrder->id,
-                    'part_id'       => $item['part_id'] ?? null,
-                    'type'          => $item['type'],
-                    'name'          => $item['name'],
-                    'quantity'      => $item['quantity'],
-                    'unit_price'    => $item['unit_price'],
-                    'total'         => $total,
+        try {
+            DB::transaction(function () use ($request) {
+                $workOrder = WorkOrder::create([
+                    'vehicle_id' => $request->vehicle_id,
+                    'date'       => $request->date,
+                    'status'     => $request->status,
+                    'discount'   => $request->discount ?? 0,
+                    'notes'      => $request->notes,
+                    'total_parts'=> 0,
+                    'total_labor'=> 0,
                 ]);
 
-                // Parça ise stoktan düş
-                if ($item['type'] === 'part' && !empty($item['part_id'])) {
-                    $part = Part::find($item['part_id']);
-                    if ($part) {
-                        $part->decrement('stock', $item['quantity']);
-                        PartMovement::create([
-                            'part_id'       => $part->id,
-                            'work_order_id' => $workOrder->id,
-                            'vehicle_id'    => $workOrder->vehicle_id,
-                            'type'          => 'out',
-                            'quantity'      => $item['quantity'],
-                            'unit_price'    => $item['unit_price'],
-                            'note'          => "İş emri #{$workOrder->id}",
-                        ]);
+                foreach ($request->items as $item) {
+                    $total = $item['quantity'] * $item['unit_price'];
+
+                    WorkOrderItem::create([
+                        'work_order_id' => $workOrder->id,
+                        'part_id'       => $item['part_id'] ?? null,
+                        'type'          => $item['type'],
+                        'name'          => $item['name'],
+                        'quantity'      => $item['quantity'],
+                        'unit_price'    => $item['unit_price'],
+                        'total'         => $total,
+                    ]);
+
+                    // Parça ise stoktan düş (negatif stok koruması ile)
+                    if ($item['type'] === 'part' && !empty($item['part_id'])) {
+                        $part = Part::where('id', $item['part_id'])->lockForUpdate()->first();
+                        if ($part) {
+                            if ($part->stock < $item['quantity']) {
+                                throw new \Exception("Yetersiz stok: '{$part->name}' için mevcut stok ({$part->stock}) talep edilenden ({$item['quantity']}) az.");
+                            }
+                            $part->decrement('stock', $item['quantity']);
+                            PartMovement::create([
+                                'part_id'       => $part->id,
+                                'work_order_id' => $workOrder->id,
+                                'vehicle_id'    => $workOrder->vehicle_id,
+                                'type'          => 'out',
+                                'quantity'      => $item['quantity'],
+                                'unit_price'    => $item['unit_price'],
+                                'note'          => "İş emri #{$workOrder->id}",
+                            ]);
+                        }
                     }
                 }
-            }
 
-            $workOrder->recalculate();
-        });
+                $workOrder->recalculate();
+            });
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('work-orders.index')
             ->with('success', 'İş emri oluşturuldu.');
@@ -227,57 +234,64 @@ class WorkOrderController extends Controller
             'items.*.part_id'    => 'nullable|exists:parts,id',
         ]);
 
-        DB::transaction(function () use ($request, $workOrder) {
-            // Eski parça stokları geri yükle
-            foreach ($workOrder->items as $item) {
-                if ($item->type === 'part' && $item->part_id) {
-                    Part::where('id', $item->part_id)->increment('stock', $item->quantity);
-                }
-            }
-
-            // Eski hareket kayıtlarını sil
-            $workOrder->partMovements()->delete();
-            $workOrder->items()->delete();
-
-            $workOrder->update([
-                'date'     => $request->date,
-                'status'   => $request->status,
-                'discount' => $request->discount ?? 0,
-                'notes'    => $request->notes,
-            ]);
-
-            // Yeni kalemleri ekle
-            foreach ($request->items as $item) {
-                $total = $item['quantity'] * $item['unit_price'];
-                WorkOrderItem::create([
-                    'work_order_id' => $workOrder->id,
-                    'part_id'       => $item['part_id'] ?? null,
-                    'type'          => $item['type'],
-                    'name'          => $item['name'],
-                    'quantity'      => $item['quantity'],
-                    'unit_price'    => $item['unit_price'],
-                    'total'         => $total,
-                ]);
-
-                if ($item['type'] === 'part' && !empty($item['part_id'])) {
-                    $part = Part::find($item['part_id']);
-                    if ($part) {
-                        $part->decrement('stock', $item['quantity']);
-                        PartMovement::create([
-                            'part_id'       => $part->id,
-                            'work_order_id' => $workOrder->id,
-                            'vehicle_id'    => $workOrder->vehicle_id,
-                            'type'          => 'out',
-                            'quantity'      => $item['quantity'],
-                            'unit_price'    => $item['unit_price'],
-                            'note'          => "İş emri #{$workOrder->id} (güncelleme)",
-                        ]);
+        try {
+            DB::transaction(function () use ($request, $workOrder) {
+                // Eski parça stokları geri yükle
+                foreach ($workOrder->items as $item) {
+                    if ($item->type === 'part' && $item->part_id) {
+                        Part::where('id', $item->part_id)->increment('stock', $item->quantity);
                     }
                 }
-            }
 
-            $workOrder->recalculate();
-        });
+                // Eski hareket kayıtlarını sil
+                $workOrder->partMovements()->delete();
+                $workOrder->items()->delete();
+
+                $workOrder->update([
+                    'date'     => $request->date,
+                    'status'   => $request->status,
+                    'discount' => $request->discount ?? 0,
+                    'notes'    => $request->notes,
+                ]);
+
+                // Yeni kalemleri ekle
+                foreach ($request->items as $item) {
+                    $total = $item['quantity'] * $item['unit_price'];
+                    WorkOrderItem::create([
+                        'work_order_id' => $workOrder->id,
+                        'part_id'       => $item['part_id'] ?? null,
+                        'type'          => $item['type'],
+                        'name'          => $item['name'],
+                        'quantity'      => $item['quantity'],
+                        'unit_price'    => $item['unit_price'],
+                        'total'         => $total,
+                    ]);
+
+                    if ($item['type'] === 'part' && !empty($item['part_id'])) {
+                        $part = Part::where('id', $item['part_id'])->lockForUpdate()->first();
+                        if ($part) {
+                            if ($part->stock < $item['quantity']) {
+                                throw new \Exception("Yetersiz stok: '{$part->name}' için mevcut stok ({$part->stock}) talep edilenden ({$item['quantity']}) az.");
+                            }
+                            $part->decrement('stock', $item['quantity']);
+                            PartMovement::create([
+                                'part_id'       => $part->id,
+                                'work_order_id' => $workOrder->id,
+                                'vehicle_id'    => $workOrder->vehicle_id,
+                                'type'          => 'out',
+                                'quantity'      => $item['quantity'],
+                                'unit_price'    => $item['unit_price'],
+                                'note'          => "İş emri #{$workOrder->id} (güncelleme)",
+                            ]);
+                        }
+                    }
+                }
+
+                $workOrder->recalculate();
+            });
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()->route('work-orders.show', $workOrder)
             ->with('success', 'İş emri güncellendi.');

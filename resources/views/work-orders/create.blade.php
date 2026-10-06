@@ -327,20 +327,34 @@
                 name:  '{{ $vehicle?->customer?->name ?? "" }}',
                 phone: '{{ $vehicle?->customer?->phone ?? "" }}',
             },
-            items: [],
+            @php
+                $initialItems = [];
+                if (request('labor')) {
+                    $initialItems[] = [
+                        'type' => 'labor',
+                        'part_id' => null,
+                        'name' => (string)request('labor'),
+                        'quantity' => 1,
+                        'unit_price' => (float)request('price', 0),
+                    ];
+                }
+                $branchQuickActions = \App\Models\Branch::getBranchQuickActions(auth()->user()?->branch?->name);
+                $defaultTemplates = collect($branchQuickActions)->map(fn($qa) => ['name' => $qa['labor'], 'price' => (float)$qa['price']])->values()->toArray();
+                if (empty($defaultTemplates)) {
+                    $defaultTemplates = [
+                        ['name' => 'Periyodik Bakım İşçiliği', 'price' => 750],
+                        ['name' => 'Kontrol & Teşhis', 'price' => 350],
+                        ['name' => 'Parça Değişim İşçiliği', 'price' => 500],
+                    ];
+                }
+            @endphp
+            items: {!! json_encode($initialItems) !!},
             discount: 0,
             partSearch: '',
             partResults: [],
             laborName: '',
             laborPrice: 0,
-            laborTemplates: JSON.parse(localStorage.getItem('sanayi_labor_templates') || 'null') || [
-                { name: 'Balata Değişimi', price: 300 },
-                { name: 'Yağ Değişimi', price: 250 },
-                { name: 'Disk Değişimi', price: 400 },
-                { name: 'Akü Değişimi', price: 200 },
-                { name: 'Muayene', price: 150 },
-                { name: 'Rot/Balans', price: 350 },
-            ],
+            laborTemplates: JSON.parse(localStorage.getItem('sanayi_labor_templates') || 'null') || {!! json_encode($defaultTemplates) !!},
             saveLaborTemplates() {
                 localStorage.setItem('sanayi_labor_templates', JSON.stringify(this.laborTemplates));
             },

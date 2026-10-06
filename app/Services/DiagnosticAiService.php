@@ -142,6 +142,13 @@ class DiagnosticAiService
 
         $mileageVal = $session->mileage ?? $workOrder?->mileage ?? $vehicle?->mileage ?? 'belirtilmemiş';
 
+        $user = $session->user ?? auth()->user();
+        $branch = $user?->branch;
+        $branchInfo = '';
+        if ($branch) {
+            $branchInfo = "- Servis Branşı & Uzmanlık: {$branch->name}" . ($branch->title ? " ({$branch->title})" : '') . "\n";
+        }
+
         $prompt = <<<PROMPT
 Sen bir uzman otomotiv arıza teşhis asistanısın. Aşağıdaki araç bilgileri, belirtiler, yapılan kontroller ve servis geçmişine göre olası arıza nedenlerini ve adım adım kontrol önerilerini analiz et.
 
@@ -154,8 +161,8 @@ Sen bir uzman otomotiv arıza teşhis asistanısın. Aşağıdaki araç bilgiler
 6. Türkçe yaz, teknik ama usta dostu anlaşılır bir dil kullan.
 7. Yanıtını SADECE geçerli JSON formatında ver, başka bir metin veya açıklama ekleme.
 
-ARAÇ BİLGİLERİ:
-- Marka / Model: {$vehicle?->brand} {$vehicle?->model}
+ARAÇ VE ATÖLYE BİLGİLERİ:
+{$branchInfo}- Marka / Model: {$vehicle?->brand} {$vehicle?->model}
 - Model Yılı: {$vehicle?->year}
 - Motor / Yakıt: {$vehicle?->engine}
 - Güncel Kilometre: {$mileageVal}

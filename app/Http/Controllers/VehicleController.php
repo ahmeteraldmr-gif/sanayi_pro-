@@ -62,8 +62,10 @@ class VehicleController extends Controller
             $customerId = $request->customer_id;
         }
 
+        $branchId = auth()->user()->branch_id;
+
         $data = $request->validate([
-            'plate'       => ['required', 'string', 'max:20', Rule::unique('vehicles', 'plate')->where(fn($q) => $q->where('user_id', auth()->id()))],
+            'plate'       => ['required', 'string', 'max:20', Rule::unique('vehicles', 'plate')->where(fn($q) => $branchId ? $q->where('branch_id', $branchId) : $q->where('user_id', auth()->id()))],
             'brand'       => 'nullable|string|max:100',
             'model'       => 'nullable|string|max:100',
             'engine'      => 'nullable|string|max:100',
@@ -73,7 +75,7 @@ class VehicleController extends Controller
             'notes'       => 'nullable|string',
         ], [
             'plate.required' => 'Plaka alanı zorunludur.',
-            'plate.unique'   => 'Bu plaka sisteminizde zaten kayıtlı.',
+            'plate.unique'   => 'Bu plaka atölyenizde zaten kayıtlı.',
         ]);
 
         $data['customer_id'] = $customerId;
@@ -104,9 +106,11 @@ class VehicleController extends Controller
 
     public function update(Request $request, Vehicle $vehicle)
     {
+        $branchId = auth()->user()->branch_id;
+
         $data = $request->validate([
             'customer_id' => 'required|exists:customers,id',
-            'plate'       => ['required', 'string', 'max:20', Rule::unique('vehicles', 'plate')->where(fn($q) => $q->where('user_id', auth()->id()))->ignore($vehicle->id)],
+            'plate'       => ['required', 'string', 'max:20', Rule::unique('vehicles', 'plate')->where(fn($q) => $branchId ? $q->where('branch_id', $branchId) : $q->where('user_id', auth()->id()))->ignore($vehicle->id)],
             'brand'       => 'nullable|string|max:100',
             'model'       => 'nullable|string|max:100',
             'engine'      => 'nullable|string|max:100',
